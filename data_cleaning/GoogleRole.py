@@ -1,90 +1,25 @@
 import pandas as pd
-import requests
-from bs4 import BeautifulSoup
-import time
-import re
-import tldextract
-from fake_useragent import UserAgent
 
-# Load dataset
-file_path = r"C:\Users\benja\Desktop\Year 3\Sem 2\Text Mining\email_cleaned_with_roles.csv"
-df = pd.read_csv(file_path)
+# Load the filtered dataset
+df_filtered = pd.read_csv(r"C:\Users\benja\Downloads\email_with_predicted_roles.csv")
 
-# Extract Name & Company from Email
-def extract_name(email):
-    match = re.match(r"([\w\.]+)@([\w\.]+)", str(email))
-    if match:
-        name = match.group(1).replace(".", " ").title()
-        return name
-    return None
+# # Filter rows where Job_Title is 'Unknown' (case-insensitive)
+# unknown_jobs = df_filtered[df_filtered['Job_Title'].str.strip().str.lower() == 'unknown']
 
-def extract_company(email):
-    match = re.match(r"([\w\.]+)@([\w\.]+)", str(email))
-    if match:
-        domain = tldextract.extract(match.group(2))
-        return domain.domain.capitalize()
-    return None
+# # Get unique 'From' email addresses for those rows
+# unique_unknown_senders = unknown_jobs['From'].unique()
 
-# Add columns if not already present
-if "Sender_Name" not in df.columns:
-    df["Sender_Name"] = df["From"].apply(extract_name)
-if "Company" not in df.columns:
-    df["Company"] = df["From"].apply(extract_company)
+# # Print the result
+# print("Number of unique senders with Job_Title as 'Unknown':", len(unique_unknown_senders))
+# print(df_filtered.columns)
 
-# Filter rows where Job_Title is 'Unknown'
-unknown_df = df[df["Job_Title"] == "Unknown"]
 
-# Get unique senders only
-unique_unknowns = unknown_df[["Sender_Name", "Company", "From"]].dropna().drop_duplicates()
+# Get unique pairs of From and Job_Title
+unique_senders_with_roles = df_filtered[['From', 'Job_Title']].drop_duplicates()
 
-# Google scraping function
-def scrape_google_for_role(name, company):
-    query = f"{name} {company}"
-    url = f"https://www.google.com/search?q={query}"
-    headers = {"User-Agent": UserAgent().random}
+# Print the number of unique pairs
+print("Number of unique sender-role pairs:", len(unique_senders_with_roles))
 
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, "html.parser")
-        results = soup.select("div.BNeawe.s3v9rd.AP7Wnd")
+# Show the first 10
+print(unique_senders_with_roles.head(10))
 
-        for result in results:
-            text = result.get_text()
-            match = re.search(r"(CEO|Director|Manager|Analyst|Executive|Consultant|President|Trader|Lawyer|HR|Assistant)", text, re.IGNORECASE)
-            if match:
-                return match.group(0).title()
-        return None
-    except Exception as e:
-        print(f"Error fetching role for {name} ({company}): {e}")
-        return None
-
-# Search and update roles
-updated_people = set()
-
-for _, person in unique_unknowns.iterrows():
-    name = person["Sender_Name"]
-    company = person["Company"]
-    sender_email = person["From"]
-
-    if not name or not company:
-        continue
-
-    print(f"Searching for {name} ({company})...")
-    role = scrape_google_for_role(name, company)
-
-    if role:
-        print(f"Found: {role}")
-        df.loc[(df["From"] == sender_email) & (df["Job_Title"] == "Unknown"), "Job_Title"] = role
-        updated_people.add(sender_email)
-    else:
-        print("Role not found.")
-
-    time.sleep(3)
-
-# Save updated dataset
-output_path = r"C:\Users\benja\Desktop\Year 3\Sem 2\Text Mining\email_cleaned_with_updated_roles.csv"
-df.to_csv(output_path, index=False)
-
-print("\nSearch complete.")
-print(f"Updated file saved to: {output_path}")
-print(f"Total unique senders updated with job titles: {len(updated_people)}")
