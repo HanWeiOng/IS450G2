@@ -7,7 +7,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report
 
 # Load dataset
-file_path = r"C:\Users\benja\Downloads\finalv1_data_filtered.csv"
+file_path = r"C:\Users\benja\Downloads\finalv1_data_filtered.csv" 
 df = pd.read_csv(file_path)
 
 # Separate known and unknown job titles
@@ -38,16 +38,21 @@ pipeline.fit(X_train, y_train)
 y_pred = pipeline.predict(X_val)
 print(classification_report(y_val, y_pred, target_names=le.classes_))
 
-# Predict for 'Unknown' roles
+# Predict for unknown job titles
 X_unknown = unknown_jobs['Cleaned_Content'].fillna('')
 unknown_pred = pipeline.predict(X_unknown)
 unknown_labels = le.inverse_transform(unknown_pred)
 
-# Overwrite 'Unknown' with predicted labels
+# Assign predicted job titles
 unknown_jobs['Job_Title'] = unknown_labels
 
-# Combine datasets and save
-final_df = pd.concat([known_jobs, unknown_jobs])
+# Combine known and predicted
+final_df = pd.concat([known_jobs, unknown_jobs], ignore_index=True)
+
+# Ensure one job title per sender (most common one) - i use mode 
+final_df['Job_Title'] = final_df.groupby('From')['Job_Title'].transform(lambda x: x.mode()[0])
+
+# Save final dataset
 final_df.to_csv(r"C:\Users\benja\Downloads\email_with_predicted_roles.csv", index=False)
 
-print("\nJob title prediction complete. Output saved to 'email_with_predicted_roles.csv'.")
+print("Job title prediction complete and the output saved to 'email_with_predicted_roles.csv'.")
